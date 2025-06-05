@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Splash Page</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Arial', sans-serif;
+      background: black;
+    }
+
+    .container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      isolation: isolate;
+    }
+
+    .background {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: 0;
+      transition: filter 0.3s ease;
+    }
+
+    .logo {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      max-width: 480px;
+      height: auto;
+      transform: translate(-50%, -50%);
+      z-index: 2;
+      pointer-events: none;
+      mix-blend-mode: difference;
+    }
+
+    .info-button {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      width: 36px;
+      height: 36px;
+      z-index: 3;
+      cursor: pointer;
+    }
+
+    .info-button img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .info-box {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      color: white;
+      font-size: 3rem;
+      font-weight: bold;
+      text-align: center;
+      padding: 20px;
+      text-transform: uppercase;
+    }
+
+    .info-box p {
+      position: relative;
+      z-index: 4;
+      mix-blend-mode: difference;
+    }
+
+    .info-button:hover ~ .background {
+      filter: blur(25px);
+    }
+
+    .info-button:hover ~ .info-box {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Info icon -->
+    <div class="info-button">
+      <img src="info-icon.webp" alt="Info Icon" />
+    </div>
+
+    <!-- Background video -->
+    <video class="background" autoplay muted loop playsinline>
+      <source src="background.webm" type="video/webm" />
+      Your browser does not support the video tag.
+    </video>
+
+    <!-- Center logo -->
+    <img src="logo.webp" alt="Logo" class="logo" />
+
+    <!-- Info text -->
+    <div class="info-box">
+      <p>COMING SOON</p>
+    </div>
+  </div>
+</body>
+</html>
