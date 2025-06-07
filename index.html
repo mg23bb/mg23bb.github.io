@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GRY</title>
+  <link rel="icon" href="favicon.ico?" type="image/x-icon" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Arial', sans-serif;
+      background: black;
+    }
+
+    .container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      isolation: isolate;
+      background: black;
+      perspective: 1000px;
+    }
+
+    .background {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      z-index: 0;
+      display: none;
+      transition: filter 0.3s ease;
+    }
+
+    .background.active {
+      display: block;
+    }
+
+    .background.blurred {
+      filter: blur(25px);
+    }
+
+    .darken-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: black;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 1;
+      transition: opacity 0.05s linear;
+    }
+
+    .logo {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      max-width: 432px;
+      height: auto;
+      transform: translate(-50%, -50%) rotateX(0deg) rotateY(0deg);
+      transform-style: preserve-3d;
+      transition: transform 0.2s ease;
+      z-index: 2;
+      cursor: pointer;
+      mix-blend-mode: difference;
+      --rotateX: 0deg;
+      --rotateY: 0deg;
+    }
+
+    .logo.shake {
+      animation: shake 0.06s infinite ease-in-out;
+    }
+
+    .disabled-click {
+      pointer-events: none;
+      cursor: default !important;
+    }
+
+    @keyframes shake {
+      0% { transform: translate(-50%, -50%) rotateX(var(--rotateX)) rotateY(var(--rotateY)) translateX(0); }
+      25% { transform: translate(-50%, -50%) rotateX(var(--rotateX)) rotateY(var(--rotateY)) translateX(-5px); }
+      50% { transform: translate(-50%, -50%) rotateX(var(--rotateX)) rotateY(var(--rotateY)) translateX(5px); }
+      75% { transform: translate(-50%, -50%) rotateX(var(--rotateX)) rotateY(var(--rotateY)) translateX(-3px); }
+      100% { transform: translate(-50%, -50%) rotateX(var(--rotateX)) rotateY(var(--rotateY)) translateX(0); }
+    }
+
+    .info-box {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 3;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.5s ease;
+      color: white;
+      font-size: 3rem;
+      font-weight: bold;
+      text-align: center;
+      padding: 20px;
+      text-transform: uppercase;
+      mix-blend-mode: difference;
+    }
+
+    .info-box.active {
+      opacity: 1;
+      pointer-events: auto;
+      z-index: 4;
+    }
+
+    @media (max-width: 600px) {
+      .logo {
+        max-width: 324px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <video class="background" muted loop playsinline preload="auto">
+      <source src="background.mp4" type="video/mp4" />
+      Your browser does not support the video tag.
+    </video>
+
+    <div class="darken-overlay"></div>
+
+    <img src="logo.webp" alt="Logo" class="logo" />
+
+    <div class="info-box">
+      <p>[COMING SOON]</p>
+    </div>
+  </div>
+
+  <script>
+    const logo = document.querySelector('.logo');
+    const container = document.querySelector('.container');
+    const background = document.querySelector('.background');
+    const infoBox = document.querySelector('.info-box');
+    const infoText = document.querySelector('.info-box p');
+    const darkenOverlay = document.querySelector('.darken-overlay');
+    const ambientAudio = new Audio('ambient.mp3');
+    ambientAudio.preload = 'auto';
+    ambientAudio.loop = false;
+
+    let clicked = false;
+    let audioEnded = false;
+    let currentMouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    let currentRotateX = 0;
+    let currentRotateY = 0;
+
+    document.addEventListener('mousemove', (e) => {
+      currentMouse.x = e.clientX;
+      currentMouse.y = e.clientY;
+    });
+
+    function lerp(start, end, t) {
+      return start + (end - start) * t;
+    }
+
+    function updateLogoAndOverlay() {
+      if (!audioEnded) return;
+
+      const rect = container.getBoundingClientRect();
+      const y = currentMouse.y - rect.top;
+      const x = currentMouse.x - rect.left;
+
+      const height = rect.height;
+      const width = rect.width;
+
+      const centerX = width / 2;
+      const centerY = height / 2;
+
+      const isTopQuarter = y < height * 0.25;
+
+      // Exponential darkening
+      const normalizedY = Math.min(Math.max(1 - y / height, 0), 1);
+      const darkenStrength = Math.pow(normalizedY, 4);
+      darkenOverlay.style.opacity = darkenStrength;
+
+      if (isTopQuarter) {
+        const deltaX = (x - centerX) / centerX;
+        const deltaY = (centerY - y) / centerY;
+
+        const maxRotateX = 45;
+        const maxRotateY = 45;
+
+        const targetRotateX = deltaY * maxRotateX;
+        const targetRotateY = deltaX * maxRotateY;
+
+        currentRotateX = lerp(currentRotateX, targetRotateX, 0.08);
+        currentRotateY = lerp(currentRotateY, targetRotateY, 0.08);
+
+        logo.style.setProperty('--rotateX', `${currentRotateX}deg`);
+        logo.style.setProperty('--rotateY', `${currentRotateY}deg`);
+        logo.style.transform = `translate(-50%, -50%) rotateX(${currentRotateX}deg) rotateY(${currentRotateY}deg)`;
+      } else {
+        currentRotateX = 0;
+        currentRotateY = 0;
+        logo.style.setProperty('--rotateX', `0deg`);
+        logo.style.setProperty('--rotateY', `0deg`);
+        logo.style.transform = `translate(-50%, -50%) rotateX(0deg) rotateY(0deg)`;
+      }
+    }
+
+    setInterval(updateLogoAndOverlay, 20);
+
+    logo.addEventListener('click', () => {
+      if (clicked) return;
+      clicked = true;
+
+      logo.classList.add('disabled-click'); // Disable pointer events and cursor
+
+      logo.classList.add('shake');
+      ambientAudio.play().catch(e => {
+        console.warn('Audio play failed:', e);
+      });
+
+      background.classList.add('active');
+      background.play();
+      container.style.background = 'none';
+
+      setTimeout(() => {
+        infoBox.classList.add('active');
+        background.classList.add('blurred');
+        startFlashing();
+      }, 8000);
+    });
+
+    function startFlashing() {
+      let flashing = true;
+
+      function flash() {
+        if (!flashing) return;
+        const visible = Math.random() > 0.5;
+        infoText.style.opacity = visible ? '1' : '0';
+        const nextInterval = Math.random() * 140 + 10; // doubled timing (was 70 + 5)
+        setTimeout(flash, nextInterval);
+      }
+
+      flash();
+
+      setTimeout(() => {
+        flashing = false;
+        infoText.style.opacity = '1';
+      }, 4000); // doubled duration (was 2000)
+    }
+
+    ambientAudio.addEventListener('ended', () => {
+      infoBox.style.display = 'none';
+      logo.classList.remove('shake');
+      audioEnded = true;
+    });
+
+    // Title typing effect slowed from 300ms to 600ms interval
+    const titleFrames = [
+      '> _',
+      '> ',
+      '> _',
+      '> ',
+      '> _',
+      '> ',
+      '> _',
+      '> G_',
+      '> GR_',
+      '> GRY_',
+      '> GRY',
+    ];
+    let frameIndex = 0;
+    let loopPhase = false;
+
+    function updateTitle() {
+      if (loopPhase) {
+        document.title = document.title === '> GRY' ? '> GRY_' : '> GRY';
+      } else {
+        document.title = titleFrames[frameIndex];
+        frameIndex++;
+        if (frameIndex >= titleFrames.length) {
+          loopPhase = true;
+        }
+      }
+    }
+
+    setInterval(updateTitle, 600); // slowed down here from 300 to 600
+  </script>
+</body>
+</html>
