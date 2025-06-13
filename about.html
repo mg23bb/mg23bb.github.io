@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en" >
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>> GRY</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: black;
+      font-family: monospace;
+      color: white;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    #container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      position: relative;
+    }
+    #spinner {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      width: 1ch;
+      text-align: center;
+      z-index: 10;
+      position: relative;
+      color: white;
+    }
+    #ascii {
+      display: inline-block;
+      font-size: 0.65rem;
+      line-height: 0.85;
+      z-index: 10;
+      position: relative;
+      font-family: monospace;
+    }
+    .char {
+      display: inline-block;
+      padding: 0;
+      margin: 0;
+      line-height: 0.85;
+      font-size: 0.65rem;
+      background-color: black;
+      color: black;
+    }
+    .space {
+      background: none;
+    }
+    canvas#canvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 0;
+      background: black;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <div id="spinner">/</div>
+    <pre id="ascii"></pre>
+  </div>
+
+  <canvas id="canvas"></canvas>
+
+  <script>
+    const spinner = document.getElementById('spinner');
+    const ascii = document.getElementById('ascii');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    const asciiArt = `
+                                                                  :;:::.::.::.::.::..::.:+&   ::::::::;;;;
+                                                           :.:.:.........................:+&  .:..........:.::.::::$   :::::;:
+                    ::::::.:.::.:.....:::x      :::..:...........::::.......:..:...:..:..:X&&:..................:X&&;.:.....:......:.::x&
+               ::.:....:.................:::xxx :..:........:...:;$&;:..:..:..............:$&&:..:..:..:......:..:x&&..................:x&
+           ...............:..:::::..:........:;x$x:.....:.....:.:+$& ::.......:..:...:....:x&&:..........:..:..:.;$&:.:...:...:..:...:.:X&
+        ::.........:..:...::;$&$:.....:.......::x&::..:...:......;&& :...:..:......:....:.:;&&:...:..:.........:.+&&:...:...:......:..::x&&
+       ....:...:........:.:$&&  ..:.:..:;;;;;:::$&&::.......:..:.+&  .:........:......:...:x&+..:......:..:..:..:x&&:..........:.......:x&&
+      .:.....:...:...:..::x&&   :x$$$&&&&&&&&&&&&& :...:.........;& ::..:..:.....:..:...:+&&x:.....:............:$&$:..:..:..:...:..:..:$&
+     .....:........:....:;&&&    :; ;+;;::::;:::.;$:.....:...:..:x& ::.:.....:..........::X&x:...:....:..:..:..:+&&:...................;&&
+    ..:.....:..:......:.:$&&   ..................:&x:......:......;& :....:....:..:..:....:;&x:.....:..........:x&&:..:..:..:..:..:..::+&&
+    ::...:.......:..:...:$&  :.:....:...:......::;$$:..:......:...:&& ::....:..........:...:x&;:..:....:..:...::$&X....................;&&
+     .:....:..:.........:;X::....:....:....:....:x&x:....:..:...:..;&&;..:....:..:..:......:;$&::....:......:.:x&&:..:..:..:..:..:..:.:x&&
+     ::.........:....:.............:.....:...:.::x&:...............:x&+:..............:..:..:x&:...:....:.....:$&+....................;X&&
+      ::..:..:....:....:.....:..:....:..........:x&:..:...:..:...:..;&&::..:...:..:...::.::::x&;:.....:...:.....::..:::..:..:..:...:..;&&
+       ;:..::.......:....:........:....:..:...::x&+.....:..........:;$&;:...::::;;;;xxX&$&&&&&&;..:.........:.........................:&&
+         x;;::.:......:....:..:.............:..;$x::....::::::::::;+$&&;;x&&&&&&&&&&&          .....:..:......:...:....:..:..:..:...::$&&
+            &xx++;:;;::;::::;:..:..:..:..:....:;&xx$x$$$X&&&&&&&&&&&                           ..:.......:......:....:..:..:.....:x&&
+                   &&&&&&&X;::.............:.:;$&&                                             .:..:::.....:.......:....:..:..:.....:x&&
+                        .::....:..:..:..:...:x&&&                                              x$&&&&&&&Xxx$xx$xxx;::...........:..:x&&
+                         xxxXx;;;::::.....::$&&                                                                    +::...:..:......:X&&
+                                &&&&&$xx;;x$&&                                                                    ..:..:......:..:.:&&
+                                          &&                                                                     :........:.......:x&&
+                                                                                                                :.:..:::....:.::::;&&
+                                                                                                                :xX$$$X;;;::;;;x+X&&
+                                                                                                                          &&&&&
+
+                                                                                                                                                 `;
+
+    function renderAscii(asciiText) {
+      ascii.innerHTML = ''; // clear
+
+      asciiText.split('\n').forEach(line => {
+        const lineEl = document.createElement('div');
+        for (const char of line) {
+          const span = document.createElement('span');
+          span.textContent = char;
+          span.className = char === ' ' ? 'space' : 'char';
+          lineEl.appendChild(span);
+        }
+        ascii.appendChild(lineEl);
+      });
+    }
+
+    const spinFrames = ['/', '-', '\\', '|'];
+    let spinIndex = 0;
+    const spinnerInterval = setInterval(() => {
+      spinner.textContent = spinFrames[spinIndex];
+      spinIndex = (spinIndex + 1) % spinFrames.length;
+    }, 100);
+
+    // Canvas lightning setup
+    const CHAR_HEIGHT = 7.5;
+    const CHAR_WIDTH = 5;
+    const MAX_BOLTS = 2;
+    let cooldown = 0;
+
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      ctx.font = `${CHAR_HEIGHT}px monospace`;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
+    function randomGRY() {
+      const chars = "GRY";
+      return chars[Math.floor(Math.random() * chars.length)];
+    }
+
+    class AsciiBolt {
+      constructor(x, y, depth = 0) {
+        this.x = x;
+        this.y = y;
+        this.points = [];
+        this.displayedPoints = 0;
+        this.alpha = 1;
+        this.flickerTimer = 0;
+        this.finished = false;
+        this.depth = depth;
+        this.flashBuilt = false;
+
+        let currentX = x;
+        let currentY = y;
+        const maxSteps = Math.floor(Math.random() * 30 + 10);
+        const dxBias = (Math.random() - 0.5) * 2;
+
+        for (let i = 0; i < maxSteps; i++) {
+          const dx = Math.round((Math.random() - 0.5 + dxBias) * 3) * CHAR_WIDTH;
+          const dy = Math.round(Math.random() * 2 + 0.5) * CHAR_HEIGHT;
+
+          currentX += dx;
+          currentY += dy;
+
+          this.points.push({
+            x: Math.floor(currentX / CHAR_WIDTH) * CHAR_WIDTH,
+            y: Math.floor(currentY / CHAR_HEIGHT) * CHAR_HEIGHT,
+            char: randomGRY(),
+          });
+
+          if (Math.random() < 0.08 && depth < 1) {
+            asciiBolts.push(new AsciiBolt(currentX, currentY, depth + 1));
+          }
+        }
+      }
+
+      update() {
+        if (!this.flashBuilt) {
+          this.displayedPoints += 3;
+          if (this.displayedPoints >= this.points.length) {
+            this.displayedPoints = this.points.length;
+            this.flashBuilt = true;
+          }
+        } else {
+          this.flickerTimer++;
+          if (this.flickerTimer >= 60) {
+            this.alpha -= 0.1;
+            if (this.alpha <= 0) {
+              this.finished = true;
+              this.alpha = 0;
+            }
+          }
+        }
+      }
+
+      draw(ctx) {
+        if (this.alpha <= 0) return;
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = 'transparent';
+        ctx.fillStyle = `rgba(255,255,255,${this.alpha.toFixed(2)})`;
+        for (let i = 0; i < this.displayedPoints; i++) {
+          const p = this.points[i];
+          ctx.fillText(p.char, p.x, p.y);
+        }
+      }
+    }
+
+    let asciiBolts = [];
+    let flickerAlpha = 0;
+    let flickerDirection = -1;
+    let flickerSpeed = 0.1;
+
+    function draw() {
+      ctx.fillStyle = "rgba(0,0,0,0.1)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      for (const bolt of asciiBolts) {
+        bolt.update();
+        bolt.draw(ctx);
+      }
+
+      asciiBolts = asciiBolts.filter(b => !b.finished);
+
+      if (cooldown > 0) {
+        cooldown--;
+      } else if (asciiBolts.length < MAX_BOLTS) {
+        if (Math.random() < 0.015) {
+          const x = Math.floor(Math.random() * canvas.width / CHAR_WIDTH) * CHAR_WIDTH;
+          asciiBolts.push(new AsciiBolt(x, 0));
+          cooldown = 40 + Math.floor(Math.random() * 220);
+        }
+      }
+
+      flickerAlpha += flickerSpeed * flickerDirection;
+      if (flickerAlpha <= 0) {
+        flickerAlpha = 0;
+        flickerDirection = 1;
+        flickerSpeed = 0.02 + Math.random() * 0.12;
+      }
+      if (flickerAlpha >= 0.6) {
+        flickerAlpha = 0.6;
+        flickerDirection = -1;
+        flickerSpeed = 0.02 + Math.random() * 0.12;
+      }
+
+      ctx.fillStyle = `rgba(0,0,0,${flickerAlpha.toFixed(2)})`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      requestAnimationFrame(draw);
+    }
+
+    function showCanvas() {
+      canvas.style.display = 'block';
+      draw();
+    }
+
+    setTimeout(() => {
+      clearInterval(spinnerInterval);
+      spinner.style.display = 'none';
+      renderAscii(asciiArt);
+
+      const colors = ['#000000', '#121212', '#1b1b1b', '#494949', '#575757', '#b1b1b1', '#e0e0e0', '#ffffff'];
+      let colorIndex = 0;
+
+      function flashColors() {
+        const chars = document.querySelectorAll('.char');
+        chars.forEach(el => el.style.color = colors[colorIndex]);
+        colorIndex++;
+        if (colorIndex < colors.length) {
+          setTimeout(flashColors, 850);
+        }
+      }
+
+      flashColors();
+      showCanvas();
+    }, 5000);
+  </script>
+</body>
+</html>
