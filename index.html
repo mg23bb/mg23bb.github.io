@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>> booting</title>
+  <link rel="icon" href="favicon.ico?" type="image/x-icon" />
+  <style>
+    @font-face {
+      font-family: 'AlteHaasGroteskBold';
+      src: url('resources/AlteHaasGroteskBold.ttf') format('truetype');
+    }
+
+    /* Cursor Styling */
+    body {
+      cursor: none;
+    }
+
+    /* Cursor Layer Composite */
+    #cursor-layer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10000;
+      mix-blend-mode: difference;
+    }
+
+    /* Canvas Trail */
+    #trail-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10000;
+      mix-blend-mode: difference;
+      filter: blur(5px);
+    }
+
+    /* [No changes to CSS] */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Arial', sans-serif;
+      background: black;
+    }
+
+    .container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      isolation: isolate;
+      background: black;
+      perspective: 1000px;
+    }
+
+    .background {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      z-index: 0;
+      display: block;
+      filter: blur(0px);
+      transition: filter 2.5s ease;
+    }
+
+    .background.blurred {
+      filter: blur(15px);
+    }
+
+    .darken-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: black;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 1;
+      transition: opacity 0.05s linear;
+    }
+
+    .logo {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      transform-style: preserve-3d;
+      transition: transform 0.2s ease, opacity 2.5s ease;
+      z-index: 2;
+      cursor: none;
+      /* Hide default cursor on hover too */
+      mix-blend-mode: difference;
+      --rotateX: 0deg;
+      --rotateY: 0deg;
+      opacity: 0;
+      pointer-events: none;
+
+      /* Text Styling */
+      font-family: 'AlteHaasGroteskBold', sans-serif;
+      font-size: 9vw;
+      /* Responsive large size */
+      color: white;
+      white-space: nowrap;
+      user-select: none;
+      /* Prevent text selection */
+      line-height: 1;
+      letter-spacing: -0.21em;
+      /* Overlap */
+      transition: color 0.2s ease, -webkit-text-stroke 0.2s ease, opacity 2.5s ease, transform 0.2s ease;
+    }
+
+    .logo.outline-mode {
+      color: transparent;
+      -webkit-text-stroke: 2px rgba(255, 255, 255, 1);
+    }
+
+    .logo-echo {
+      display: none;
+    }
+
+    .logo.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .curtain {
+      position: fixed;
+      top: 0;
+      width: 50vw;
+      height: 100vh;
+      background: black;
+      z-index: 20000;
+      /* Ensure on top of cursor trail (10000) */
+      pointer-events: none;
+      transform: translateX(0);
+      /* Default: Fast retreat */
+      transition: transform 0.4s ease-out;
+    }
+
+    .curtain.active {
+      /* Active: Slow close with ease curve */
+      transition: transform 3s cubic-bezier(0.7, 0, 0.2, 1);
+    }
+
+    .curtain.left {
+      left: 0;
+      transform: translateX(-100%);
+    }
+
+    .curtain.right {
+      right: 0;
+      transform: translateX(100%);
+    }
+
+    .curtain.active.left {
+      transform: translateX(0);
+    }
+
+    .curtain.active.right {
+      transform: translateX(0);
+    }
+
+    @media (max-width: 600px) {
+
+      .logo,
+      .logo-echo {
+        font-size: 18vw;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Canvas Trail Layer -->
+  <canvas id="trail-canvas"></canvas>
+
+  <div class="container">
+    <video class="background" muted autoplay loop playsinline preload="auto">
+      <source src="resources/background.mp4" type="video/mp4" />
+      Your browser does not support the video tag.
+    </video>
+
+    <div class="darken-overlay"></div>
+
+    <h1 class="logo">GRY</h1>
+  </div>
+
+  <div class="curtain left"></div>
+  <div class="curtain right"></div>
+
+  <script>
+    const logo = document.querySelector('.logo');
+    const container = document.querySelector('.container');
+    const background = document.querySelector('.background');
+    const darkenOverlay = document.querySelector('.darken-overlay');
+    const leftCurtain = document.querySelector('.curtain.left');
+    const rightCurtain = document.querySelector('.curtain.right');
+    const canvas = document.querySelector('#trail-canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Canvas Setup
+    let width, height;
+    function resizeCanvas() {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width;
+      canvas.height = height;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // Trail Logic (Canvas)
+    const points = [];
+    const MAX_POINTS = 25; // Shorter tail
+    let currentTrailWidth = 20;
+
+    function addPoint(x, y) {
+      points.push({ x, y, age: 0 });
+      if (points.length > MAX_POINTS) {
+        points.shift();
+      }
+    }
+
+    // Force Play (safeguard for autoplay policies)
+    window.addEventListener('load', () => {
+      background.play().catch(e => console.log('Autoplay prevented:', e));
+
+      // Intro Sequence: Delay, then Blur Video + Fade In Logo
+      setTimeout(() => {
+        background.classList.add('blurred');
+        logo.classList.add('visible');
+      }, 1200);
+
+      // Start Loop
+      requestAnimationFrame(renderLoop);
+    });
+
+    let currentMouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    // Initialize points at center
+    points.push({ x: currentMouse.x, y: currentMouse.y, age: 0 });
+
+    document.addEventListener('mousemove', (e) => {
+      currentMouse.x = e.clientX;
+      currentMouse.y = e.clientY;
+      // Add multiple points if moving fast?
+      // Actually renderLoop handles drawing, but we need high freq updates.
+      // Let's just push here.
+      addPoint(currentMouse.x, currentMouse.y);
+    });
+
+    function updateLogoAndOverlay() {
+      // Only process effect if logo is visible
+      if (!logo.classList.contains('visible')) return;
+
+      const rect = container.getBoundingClientRect();
+      const y = currentMouse.y - rect.top;
+
+      const height = rect.height;
+
+      const normalizedY = Math.min(Math.max(1 - y / height, 0), 1);
+      const darkenStrength = Math.pow(normalizedY, 4);
+      darkenOverlay.style.opacity = darkenStrength;
+
+      // No 3D Tilt anymore
+      logo.style.transform = `translate(-50%, -50%)`;
+
+      // Logo Style: Driven by Y Position (Top = Outline, Bottom/Normal = Solid)
+      // normalizedY is 0 at bottom, 1 at top.
+      // User wants effect only in top 2/5 (40%). So start at 0.6 normalizedY.
+
+      let styleFactor = 0;
+      const threshold = 0.6; // 60% up the screen
+
+      if (normalizedY > threshold) {
+        styleFactor = (normalizedY - threshold) / (1 - threshold);
+      }
+
+      // Variable styleFactor is now 0..1 in the top zone.
+
+      // Solid -> Transparent (Fill)
+      logo.style.color = `rgba(255, 255, 255, ${1 - styleFactor})`;
+
+      // Transparent -> White (Stroke)
+      logo.style.webkitTextStroke = `2px rgba(255, 255, 255, ${styleFactor})`;
+    }
+
+    function renderLoop() {
+      updateLogoAndOverlay();
+
+      // Clear Canvas
+      ctx.clearRect(0, 0, width, height);
+
+      // Draw Trail
+      if (points.length < 2) return requestAnimationFrame(renderLoop);
+
+      ctx.beginPath();
+      // Move to first point
+      ctx.moveTo(points[0].x, points[0].y);
+
+      // Draw quadratic curves for smooth spline
+      for (let i = 1; i < points.length - 1; i++) {
+        const xc = (points[i].x + points[i + 1].x) / 2;
+        const yc = (points[i].y + points[i + 1].y) / 2;
+        ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+      }
+      // Connect last point
+      ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      // Dynamic Width Calculation
+      const isHovering = logo.matches(':hover') && logo.classList.contains('visible');
+      const targetWidth = isHovering ? 200 : 20;
+
+      // Lerp width
+      currentTrailWidth += (targetWidth - currentTrailWidth) * 0.1;
+
+      ctx.lineWidth = currentTrailWidth;
+      ctx.strokeStyle = 'white';
+      // Removed shadowBlur to avoid "glow" look
+
+      // Since we can't easily fade stroke opacity along a single path without complex gradients,
+      // and user complained about "circles" (segments), a single solid path is best for continuity.
+      // We can fake fade by clearing the trailing points over time.
+
+      ctx.stroke();
+
+      // Auto-add points if mouse stopped (to prevent tail flying away? No, standard trail should disappear if static)
+      // Actually standard trail stays. User said "trail sees to move around, which it shouldn't".
+      // This implies they want a history trail that just sits there.
+      // BUT, if I don't add points, the tail never shortens if the mouse stops.
+      // To make it vanish, we should shift points out even if not moving?
+      // Or checking age.
+
+      // Simple decay: If user is idle, remove points from start.
+      // Actually, standard visual effect behavior is: points have life.
+      // Let's implement life.
+
+      // Re-implement with segments for fading opacity?
+      // "looks like circles" -> segments were visible.
+      // Single path is best.
+      // Let's just slowly shift the array if no mouse movement?
+      // Or just always shift the array?
+      // If I always shift, the trail disappears behind the cursor.
+      // BUT if I only add on mouse move, it disappears when moving.
+
+      // Correct Logic:
+      // Always add current mouse pos to head.
+      // Always remove tail.
+      // This creates a constant length "snake" that follows.
+      // But user said "trail sees to move around which it shouldn't" -> They probably Hated the snake "catch up" effect.
+      // They want a static history trail that fades.
+
+      // To do static history fading smoothly without circles:
+      // We MUST draw segments, but with overlaps or very close steps.
+      // OR use a gradient stroke? (Hard on complex curves).
+
+      // Let's try the "Constant flow" approach first which is safest for "unbroken".
+      // Using `ctx.stroke()` on the whole set guarantees unbroken.
+      // To make it disappear: we trim the array size.
+      // To avoid "moving around": We DO NOT modify existing point coordinates (No physics).
+      // We only add/remove points.
+
+      // Problem: If mouse stops, `points` doesn't change. Trail freezes.
+      // Fix: Add currentMouse every frame?
+      // If we add currentMouse every frame, the array fills with duplicates of the resting position, effectively "eating" the tail into the cursor.
+      // This looks like the tail sucking into the cursor.
+      // This is generally acceptable behavior.
+
+      addPoint(currentMouse.x, currentMouse.y);
+      // Note: This effectively gives it a fixed time-length (MAX_POINTS / 60fps ~= 0.8s duration)
+
+      requestAnimationFrame(renderLoop);
+    }
+
+    // Interaction Logic: Click and Hold to Redirect
+    let isHolding = false;
+
+    function startSequence() {
+      if (!logo.classList.contains('visible')) return; // Prevent interaction before intro
+      isHolding = true;
+      leftCurtain.classList.add('active');
+      rightCurtain.classList.add('active');
+    }
+
+    function cancelSequence() {
+      isHolding = false;
+      leftCurtain.classList.remove('active');
+      rightCurtain.classList.remove('active');
+    }
+
+    logo.addEventListener('mousedown', startSequence);
+    logo.addEventListener('touchstart', (e) => {
+      if (!logo.classList.contains('visible')) return;
+      e.preventDefault();
+      startSequence();
+    });
+
+    logo.addEventListener('mouseup', cancelSequence);
+    logo.addEventListener('mouseleave', cancelSequence);
+    logo.addEventListener('touchend', cancelSequence);
+
+    // Listen for transition end on one of the curtains
+    leftCurtain.addEventListener('transitionend', () => {
+      if (isHolding && leftCurtain.classList.contains('active')) {
+        window.location.href = 'splash/';
+      }
+    });
+
+    const titleFrames = [
+      '> _',
+      '> ',
+      '> _',
+      '> ',
+      '> _',
+      '> ',
+      '> _',
+      '> G_',
+      '> GR_',
+      '> GRY_',
+      '> GRY',
+    ];
+    let frameIndex = 0;
+    let loopPhase = false;
+
+    function updateTitle() {
+      if (loopPhase) {
+        document.title = document.title === '> GRY' ? '> GRY_' : '> GRY';
+      } else {
+        document.title = titleFrames[frameIndex];
+        frameIndex++;
+        if (frameIndex >= titleFrames.length) {
+          loopPhase = true;
+        }
+      }
+    }
+
+    setInterval(updateTitle, 600);
+  </script>
+</body>
+
+</html>
